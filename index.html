@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Average Speed</title>
+<meta name="description" content="Shows your current speed and your average speed since you pressed Start, in km/h.">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Avg Speed">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-512.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --bg: #000;
+    --fg: #fff;
+    --muted: #9a9a9a;
+    --over: #ff3b30;
+    --line: #fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .panel {
+    position: relative;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 0;
+  }
+  .top { flex: 1 1 0; }
+  .bottom { flex: 2 1 0;  }
+  .divider { height: 1px; background: var(--line); flex: none; }
+  .label {
+    position: absolute; top: 14px; left: 0; right: 0;
+    text-align: center;
+    font-size: 15px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .num {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .top .num { font-size: min(21vh, 42vw); }
+  .bottom .num { font-size: min(36vh, 54vw); }
+  .unit { font-size: 15px; color: var(--muted); margin-top: 6px; letter-spacing: .08em; }
+
+  .bottom.over { background: var(--over); }
+  .bottom.over .label, .bottom.over .unit { color: #fff; }
+
+  .limit-badge {
+    position: absolute; top: 10px; right: 14px;
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 4px solid var(--over); background: #fff; color: #000;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums;
+  }
+  .bottom.over .limit-badge { border-color: #fff; }
+
+  .status {
+    position: absolute; bottom: 12px; left: 16px;
+    font-size: 13px; color: var(--muted);
+  }
+  .bottom.over .status { color: #fff; }
+
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+
+  .stop-btn {
+    position: absolute; bottom: 10px; right: 14px;
+    padding: 10px 18px; border-radius: 999px;
+    border: 1.5px solid currentColor; font-size: 15px; font-weight: 600;
+  }
+
+  /* Start / stopped overlay */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10;
+    background: rgba(0,0,0,.88);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 22px;
+    padding: 24px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    text-align: center;
+  }
+  .overlay[hidden] { display: none; }
+  .start-btn {
+    width: min(64vw, 260px); height: min(64vw, 260px); border-radius: 50%;
+    background: #fff; color: #000;
+    font-size: 40px; font-weight: 800; letter-spacing: .04em;
+  }
+  .start-btn:active { transform: scale(.97); }
+  .overlay p { color: var(--muted); font-size: 15px; max-width: 320px; line-height: 1.4; }
+  .overlay .summary { color: #fff; font-size: 17px; }
+  .settings-link {
+    padding: 12px 22px; border-radius: 999px; border: 1.5px solid #555;
+    font-size: 16px; font-weight: 600;
+  }
+
+  /* Settings sheet */
+  .sheet {
+    position: fixed; inset: 0; z-index: 20; background: #000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    padding: 24px 16px;
+  }
+  .sheet[hidden] { display: none; }
+  .sheet h2 { font-size: 22px; }
+  .stepper { display: flex; align-items: center; gap: 18px; }
+  .stepper button {
+    width: 64px; height: 64px; border-radius: 50%; border: 1.5px solid #fff;
+    font-size: 32px; font-weight: 600; line-height: 1;
+  }
+  .stepper input {
+    width: 140px; text-align: center; background: #000; color: #fff;
+    border: 0; border-bottom: 2px solid #fff;
+    font-size: 64px; font-weight: 700; font-variant-numeric: tabular-nums;
+    -webkit-user-select: text; user-select: text;
+  }
+  .stepper input:focus { outline: none; }
+  .sheet .done {
+    margin-top: 10px; padding: 14px 40px; border-radius: 999px;
+    background: #fff; color: #000; font-size: 18px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="panel top" aria-label="Current speed">
+    <div class="label">Current speed</div>
+    <div class="num" id="current">–</div>
+    <div class="unit">km/h</div>
+  </section>
+  <div class="divider"></div>
+  <section class="panel bottom" id="bottom" aria-label="Average speed">
+    <div class="label">Average speed</div>
+    <div class="limit-badge" id="badge" aria-label="Speed limit">100</div>
+    <div class="num" id="average">–</div>
+    <div class="unit">km/h</div>
+    <div class="status" id="status"></div>
+    <button class="stop-btn" id="stopBtn" hidden>Stop</button>
+  </section>
+</div>
+
+<div class="overlay" id="overlay">
+  <p class="summary" id="summary" hidden></p>
+  <button class="start-btn" id="startBtn">START</button>
+  <p>Press Start as you pass the first camera.<br>Limit: <strong id="limitText">100</strong> km/h</p>
+  <button class="settings-link" id="settingsBtn">Settings</button>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <h2>Speed limit</h2>
+  <div class="stepper">
+    <button id="minus" aria-label="Decrease limit">−</button>
+    <input id="limitInput" type="number" inputmode="numeric" pattern="[0-9]*" min="10" max="150" step="10">
+    <button id="plus" aria-label="Increase limit">+</button>
+  </div>
+  <p style="color:var(--muted)">km/h · the average turns red above this</p>
+  <button class="done" id="doneBtn">Done</button>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const els = {
+    current: $('current'), average: $('average'), bottom: $('bottom'), badge: $('badge'),
+    status: $('status'), stopBtn: $('stopBtn'), overlay: $('overlay'), startBtn: $('startBtn'),
+    summary: $('summary'), limitText: $('limitText'), settingsBtn: $('settingsBtn'),
+    sheet: $('sheet'), limitInput: $('limitInput'), minus: $('minus'), plus: $('plus'), doneBtn: $('doneBtn'),
+  };
+
+  // ---------- Settings ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+  let limit = clampLimit(parseInt(store.get('limit', '100'), 10));
+  function clampLimit(v) { return Number.isFinite(v) ? Math.min(200, Math.max(5, v)) : 100; }
+  function showLimit() {
+    els.badge.textContent = limit;
+    els.limitText.textContent = limit;
+    els.limitInput.value = limit;
+  }
+  function setLimit(v) { limit = clampLimit(v); store.set('limit', String(limit)); showLimit(); render(); }
+  showLimit();
+
+  els.settingsBtn.onclick = () => { els.sheet.hidden = false; };
+  els.minus.onclick = () => setLimit(limit - 10);
+  els.plus.onclick = () => setLimit(limit + 10);
+  els.limitInput.onchange = () => setLimit(parseInt(els.limitInput.value, 10));
+  els.doneBtn.onclick = () => { setLimit(parseInt(els.limitInput.value, 10)); els.limitInput.blur(); els.sheet.hidden = true; };
+
+  // ---------- Tracking ----------
+  // Average speed = distance travelled since Start ÷ time since Start
+  // (the same way a point-to-point camera works it out).
+  const MAX_ACCURACY_M = 50;     // ignore GPS fixes worse than this
+  let watchId = null, startTime = 0, distanceM = 0, last = null;
+  let currentKmh = null, running = false, tick = null, wakeLock = null, lastFixAt = 0;
+
+  function haversine(a, b) {
+    const R = 6371000, toRad = x => x * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function onPosition(pos) {
+    const c = pos.coords;
+    const t = pos.timestamp || Date.now();
+    lastFixAt = Date.now();
+    if (c.accuracy > MAX_ACCURACY_M) { setStatus('Weak GPS signal'); return; }
+    setStatus('');
+
+    const here = { lat: c.latitude, lon: c.longitude, t, speed: (c.speed != null && c.speed >= 0) ? c.speed : null };
+
+    if (last && t > last.t) {
+      const dt = (t - last.t) / 1000;
+      const moved = haversine(last, here);
+      let seg;
+      if (here.speed != null && last.speed != null) {
+        // Doppler speed from the GPS chip is the most reliable; integrate it over time.
+        seg = ((here.speed + last.speed) / 2) * dt;
+      } else {
+        // Fall back to position changes, ignoring jitter while stationary.
+        seg = moved < Math.min(c.accuracy, 10) ? 0 : moved;
+      }
+      distanceM += seg;
+      currentKmh = here.speed != null ? here.speed * 3.6 : (seg / dt) * 3.6;
+    } else {
+      // First good fix: the clock starts here, so GPS warm-up time
+      // can't drag the average down.
+      startTime = Date.now();
+      if (here.speed != null) currentKmh = here.speed * 3.6;
+    }
+    last = here;
+    render();
+  }
+
+  function onError(err) {
+    if (err.code === 1) {
+      setStatus('Location access is off');
+      stop();
+      els.summary.hidden = false;
+      els.summary.textContent = 'Location access is needed. In Settings → Privacy & Security → Location Services, allow Safari Websites, then try again.';
+    } else {
+      setStatus('Searching for GPS…');
+    }
+  }
+
+  function setStatus(s) { els.status.textContent = s; }
+
+  function averageKmh() {
+    if (!startTime || !last) return null; // no GPS fix yet
+    // Measure time up to the latest GPS reading (so the number doesn't
+    // sawtooth between readings). If the signal drops out, keep the clock
+    // running so a tunnel or dead spot can't make the average look lower.
+    const until = (Date.now() - lastFixAt > 5000) ? Date.now() : lastFixAt;
+    const elapsed = (until - startTime) / 1000;
+    if (elapsed < 1) return null;
+    return (distanceM / elapsed) * 3.6;
+  }
+
+  let frozenAvg = null;
+  function render() {
+    els.current.textContent = currentKmh == null ? '–' : Math.round(currentKmh);
+    const avg = running ? averageKmh() : frozenAvg;
+    const shown = avg == null ? null : Math.round(avg);
+    els.average.textContent = shown == null ? '–' : shown;
+    els.bottom.classList.toggle('over', shown != null && shown > limit);
+  }
+
+  async function keepAwake() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (running && document.visibilityState === 'visible') keepAwake();
+  });
+
+  function start() {
+    if (!('geolocation' in navigator)) { setStatus('This device has no GPS access'); return; }
+    distanceM = 0; last = null; currentKmh = null; frozenAvg = null;
+    startTime = 0; running = true;
+    els.overlay.hidden = true; els.summary.hidden = true;
+    els.stopBtn.hidden = false;
+    setStatus('Searching for GPS…');
+    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
+    });
+    tick = setInterval(() => {
+      if (lastFixAt && Date.now() - lastFixAt > 5000) setStatus('GPS signal lost');
+      render();
+    }, 500);
+    keepAwake();
+    render();
+  }
+
+  function stop() {
+    if (running) frozenAvg = averageKmh();
+    running = false;
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    clearInterval(tick);
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    els.stopBtn.hidden = true;
+    els.overlay.hidden = false;
+    if (frozenAvg != null) {
+      const total = Math.floor((Date.now() - startTime) / 1000);
+      const mins = Math.floor(total / 60), secs = total % 60;
+      els.summary.hidden = false;
+      els.summary.textContent = `Last run: ${Math.round(frozenAvg)} km/h average over ${(distanceM / 1000).toFixed(1)} km in ${mins}:${String(secs).padStart(2, '0')}`;
+    }
+    els.startBtn.textContent = 'START';
+    render();
+  }
+
+  els.startBtn.onclick = start;
+  els.stopBtn.onclick = stop;
+
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

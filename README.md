@@ -1,2 +1,38 @@
 # Average-Speed-Display
-A simple app that tracks current and average speed. Intended for use when driving between average speed cameras. 
+
+A simple app that tracks current and average speed. Intended for use when driving between average speed cameras.
+
+It's an iPhone web app that shows your **current speed** and your **average speed since you pressed Start**, in km/h. It's built for average speed camera sections, where the cameras work out your average speed between two points.
+
+- Top third: current speed
+- Bottom two-thirds: average speed, which turns **red** when it goes above your speed limit
+- Settings: set the speed limit (default 100 km/h). It's remembered on your phone.
+- Keeps the screen awake while running and works with patchy reception once it has loaded.
+
+## Install on an iPhone
+
+1. Open the app link in **Safari**.
+2. Tap the **Share** button, then **Add to Home Screen**.
+3. Open it from the new icon. The first time you press Start, allow location access.
+
+If it says location access is off: Settings → Privacy & Security → Location Services → Safari Websites → *While Using the App*.
+
+## How to use it
+
+Press **Start** as you pass the first camera, and **Stop** after the second. The average is distance travelled ÷ time taken, which is how the cameras measure it. It starts at your first GPS reading, so GPS warm-up can't make it look lower than it is.
+
+Phone GPS is good, but it's not the camera's equipment. Treat the app as a guide and keep a margin under the limit.
+
+**Safety:** a passenger should operate it, or put the phone in a dash mount and just glance at it. Don't handle the phone while driving.
+
+## Files
+
+Plain HTML, CSS and JavaScript. No build step.
+
+- `index.html`: the whole app
+- `manifest.webmanifest`, `icon-*.png`: home-screen app setup
+- `sw.js`: offline caching
+
+## Licence
+
+MIT. See [LICENSE](LICENSE). You're welcome to use, change and share this app. If you build on it, a credit to **Rachel Mackay | On Purpose** would be appreciated.
