@@ -256,7 +256,10 @@
       setStatus('Location access is off');
       stop();
       els.summary.hidden = false;
-      els.summary.textContent = 'Location access is needed. In Settings → Privacy & Security → Location Services, allow Safari Websites, then try again.';
+      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      els.summary.textContent = ios
+        ? 'Location access is needed. In Settings → Privacy & Security → Location Services, allow Safari Websites, then try again.'
+        : 'Location access is needed. Allow location for this site in your browser settings and make sure Location is on, then try again.';
     } else {
       setStatus('Searching for GPS…');
     }
