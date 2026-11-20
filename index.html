@@ -43,15 +43,15 @@
     align-items: center; justify-content: center;
     min-height: 0;
   }
-  .top { flex: 1 1 0; }
-  .bottom { flex: 2 1 0;  }
+  .top { flex: 1 1 0; padding-top: 48px; }
+  .bottom { flex: 2 1 0; padding-top: 70px; padding-bottom: 80px; }
   .divider { height: 1px; background: var(--line); flex: none; }
   .label {
     position: absolute; top: 14px; left: 0; right: 0;
     text-align: center;
-    font-size: 15px; font-weight: 600;
-    letter-spacing: .12em; text-transform: uppercase;
-    color: var(--muted);
+    font-size: 26px; font-weight: 800;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: #fff;
   }
   .num {
     font-weight: 700;
@@ -59,8 +59,8 @@
     line-height: 1;
     letter-spacing: -0.03em;
   }
-  .top .num { font-size: min(21vh, 42vw); }
-  .bottom .num { font-size: min(36vh, 54vw); }
+  .top .num { font-size: min(17vh, 40vw); }
+  .bottom .num { font-size: min(32vh, 50vw); }
   .unit { font-size: 15px; color: var(--muted); margin-top: 6px; letter-spacing: .08em; }
 
   .bottom.over { background: var(--over); }
@@ -76,18 +76,19 @@
   .bottom.over .limit-badge { border-color: #fff; }
 
   .status {
-    position: absolute; bottom: 12px; left: 16px;
-    font-size: 13px; color: var(--muted);
+    position: absolute; top: 50px; left: 0; right: 0; text-align: center;
+    font-size: 14px; color: var(--muted);
   }
   .bottom.over .status { color: #fff; }
 
   button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
 
   .stop-btn {
-    position: absolute; bottom: 10px; right: 14px;
-    padding: 10px 18px; border-radius: 999px;
-    border: 1.5px solid currentColor; font-size: 15px; font-weight: 600;
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    width: min(70vw, 300px); height: 64px; border-radius: 999px;
+    border: 3px solid currentColor; font-size: 24px; font-weight: 800; letter-spacing: .08em;
   }
+  .stop-btn:active { background: rgba(255,255,255,.2); }
 
   /* Start / stopped overlay */
   .overlay {
@@ -141,18 +142,18 @@
 <body>
 <div class="app">
   <section class="panel top" aria-label="Current speed">
-    <div class="label">Current speed</div>
+    <div class="label">Speed</div>
     <div class="num" id="current">–</div>
     <div class="unit">km/h</div>
   </section>
   <div class="divider"></div>
   <section class="panel bottom" id="bottom" aria-label="Average speed">
-    <div class="label">Average speed</div>
+    <div class="label">Avg</div>
     <div class="limit-badge" id="badge" aria-label="Speed limit">100</div>
     <div class="num" id="average">–</div>
     <div class="unit">km/h</div>
     <div class="status" id="status"></div>
-    <button class="stop-btn" id="stopBtn" hidden>Stop</button>
+    <button class="stop-btn" id="stopBtn" hidden>STOP</button>
   </section>
 </div>
 
@@ -209,7 +210,11 @@
   // Average speed = distance travelled since Start ÷ time since Start
   // (the same way a point-to-point camera works it out).
   const MAX_ACCURACY_M = 50;     // ignore GPS fixes worse than this
-  let watchId = null, startTime = 0, distanceM = 0, last = null;
+  const STEADY_ACCURACY_M = 25;  // accuracy needed before the average clock starts
+  const STEADY_FIXES = 3;        // ...for this many readings in a row
+  const SETTLE_SECONDS = 5;      // average is hidden for this long after the clock starts
+  const MAX_PLAUSIBLE_MS = 70;   // ~250 km/h: anything faster is a GPS jump, not driving
+  let watchId = null, startTime = 0, distanceM = 0, last = null, steady = 0;
   let currentKmh = null, running = false, tick = null, wakeLock = null, lastFixAt = 0;
 
   function haversine(a, b) {
@@ -228,7 +233,21 @@
 
     const here = { lat: c.latitude, lon: c.longitude, t, speed: (c.speed != null && c.speed >= 0) ? c.speed : null };
 
-    if (last && t > last.t) {
+    if (!startTime) {
+      // Warm-up: the first readings are often a rough or cached location,
+      // and jumping from that to the real position looks like very fast
+      // driving. Show current speed, but only start the average clock
+      // once the GPS has given several accurate readings in a row.
+      if (here.speed != null) currentKmh = here.speed * 3.6;
+      steady = c.accuracy <= STEADY_ACCURACY_M ? steady + 1 : 0;
+      if (steady < STEADY_FIXES) { setStatus('Getting a steady GPS signal…'); render(); return; }
+      startTime = Date.now();
+      last = here;
+      render();
+      return;
+    }
+
+    if (t > last.t) {
       const dt = (t - last.t) / 1000;
       const moved = haversine(last, here);
       let seg;
@@ -239,13 +258,14 @@
         // Fall back to position changes, ignoring jitter while stationary.
         seg = moved < Math.min(c.accuracy, 10) ? 0 : moved;
       }
+      if (seg / dt > MAX_PLAUSIBLE_MS) {
+        // A GPS jump, not real movement: skip it but keep the new position.
+        last = here;
+        render();
+        return;
+      }
       distanceM += seg;
       currentKmh = here.speed != null ? here.speed * 3.6 : (seg / dt) * 3.6;
-    } else {
-      // First good fix: the clock starts here, so GPS warm-up time
-      // can't drag the average down.
-      startTime = Date.now();
-      if (here.speed != null) currentKmh = here.speed * 3.6;
     }
     last = here;
     render();
@@ -274,7 +294,7 @@
     // running so a tunnel or dead spot can't make the average look lower.
     const until = (Date.now() - lastFixAt > 5000) ? Date.now() : lastFixAt;
     const elapsed = (until - startTime) / 1000;
-    if (elapsed < 1) return null;
+    if (elapsed < SETTLE_SECONDS) return null; // let it settle before showing
     return (distanceM / elapsed) * 3.6;
   }
 
@@ -296,7 +316,7 @@
 
   function start() {
     if (!('geolocation' in navigator)) { setStatus('This device has no GPS access'); return; }
-    distanceM = 0; last = null; currentKmh = null; frozenAvg = null;
+    distanceM = 0; last = null; steady = 0; lastFixAt = 0; currentKmh = null; frozenAvg = null;
     startTime = 0; running = true;
     els.overlay.hidden = true; els.summary.hidden = true;
     els.stopBtn.hidden = false;
@@ -313,7 +333,7 @@
   }
 
   function stop() {
-    if (running) frozenAvg = averageKmh();
+    if (running) frozenAvg = averageKmh();  // null if stopped before it settled
     running = false;
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     watchId = null;

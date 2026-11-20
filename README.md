@@ -29,7 +29,7 @@ If it says location access is off: in Chrome, tap the icon to the left of the ad
 
 ## How to use it
 
-Press **Start** as you pass the first camera, and **Stop** after the second. The average is distance travelled ÷ time taken, which is how the cameras measure it. It starts at your first GPS reading, so GPS warm-up can't make it look lower than it is.
+Press **Start** as you pass the first camera, and **Stop** after the second. The average is distance travelled ÷ time taken, which is how the cameras measure it. The average clock waits until the GPS has a steady signal (usually a few seconds), and the average shows a dash for its first 5 seconds while it settles. That stops a rough first GPS reading from showing a false high average, and GPS warm-up time can't make it look lower than it is. Pressing Start a few seconds before the first camera gives it time to settle.
 
 Phone GPS is good, but it's not the camera's equipment. Treat the app as a guide and keep a margin under the limit.
 
