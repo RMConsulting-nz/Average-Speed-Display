@@ -1,5 +1,5 @@
 // Caches the app so it opens even with patchy mobile reception.
-const CACHE = 'avg-speed-v3';
+const CACHE = 'avg-speed-v4';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
